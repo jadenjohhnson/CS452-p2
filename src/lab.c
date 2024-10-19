@@ -2,6 +2,7 @@
 #include <pthread.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 struct queue {
     void **data;
@@ -25,7 +26,7 @@ queue_t queue_init(int capacity) {
         return NULL;
     }
 
-    //make sure data in queue is clean
+    //Allocate memory for the queue
     theQ->data = (void **) malloc(capacity *sizeof(void *));
     if(theQ->data == NULL){
         free(theQ);
@@ -42,7 +43,7 @@ queue_t queue_init(int capacity) {
     //Set the mutex
     pthread_mutex_init(&theQ->mutex, NULL);
     pthread_cond_init(&theQ->not_empty, NULL);
-    pthread_cond_init(&theQ->not_empty, NULL);
+    pthread_cond_init(&theQ->not_full, NULL);
 
     //The Queue is now set up
     return theQ;
@@ -82,7 +83,7 @@ void enqueue(queue_t theQ, void *data){
         pthread_mutex_unlock(&theQ->mutex);
     }
 
-    //increase the location of the rear of the queue
+    //increase the location of the rear of the queue (in a circular style)
     theQ->rear = (theQ->rear + 1) % theQ->capacity;
     theQ->data[theQ->rear] = data;
     theQ->size++;
@@ -108,10 +109,10 @@ void *dequeue(queue_t theQ) {
         return NULL;
     }
 
-    //Get the data that is being removed
+    //Get the data that is being removed (also in a circular style)
     void *data = theQ->data[theQ->front];
     theQ->front = (theQ->front + 1) % theQ->capacity;
-    theQ->size;
+    theQ->size--;
 
     //signal not full and unlock queue
     pthread_cond_signal(&theQ->not_full);
@@ -126,6 +127,8 @@ void queue_shutdown(queue_t theQ) {
     //lock the queue
     pthread_mutex_lock(&theQ->mutex);
 
+    printf("Time to shutdown queue!\n");
+
     //set is_shutdown flag to true
     theQ->is_shutdown = true;
 
@@ -138,3 +141,31 @@ void queue_shutdown(queue_t theQ) {
 }
 
 //check if the thread is empty
+bool is_empty(queue_t theQ) {
+    //lock the queue
+    pthread_mutex_lock(&theQ->mutex);
+    
+    //determine whether queue is empty
+    bool empty = (theQ->size == 0);
+
+    //unlock the queue
+    pthread_mutex_unlock(&theQ->mutex);
+
+    //return whether the queue is empty
+    return empty;
+}
+
+//check if the queue is shutdown
+bool is_shutdown (queue_t theQ) {
+    //lock the queue
+    pthread_mutex_lock(&theQ->mutex);
+
+    //determine whether queue is shutdown
+    bool shutdown = theQ->is_shutdown;
+
+    //unlock the queue
+    pthread_mutex_unlock(&theQ->mutex);
+
+    //return whether the queue is shutdown
+    return shutdown;
+}
