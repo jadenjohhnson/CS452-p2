@@ -66,6 +66,7 @@ void queue_destroy(queue_t theQ){
     free(theQ);
 }
 
+//Add to queue
 void enqueue(queue_t theQ, void *data){
 
     //This is a critical section, so lock the queue
@@ -90,3 +91,50 @@ void enqueue(queue_t theQ, void *data){
     pthread_cond_signal(&theQ->not_empty);
     pthread_mutex_unlock(&theQ->mutex);
 }
+
+//remove from front of queue
+void *dequeue(queue_t theQ) {
+    //Lock the queue while dealing with it
+    pthread_mutex_lock(&theQ->mutex);
+
+    //wait until the queue is not empty
+    while(theQ->size == 0 && !theQ->is_shutdown){
+        pthread_cond_wait(&theQ->not_empty, & theQ->mutex);
+    }
+
+    //unlock the queue if there is nothing in it
+    if(theQ->size == 0) {
+        pthread_mutex_unlock(&theQ->mutex);
+        return NULL;
+    }
+
+    //Get the data that is being removed
+    void *data = theQ->data[theQ->front];
+    theQ->front = (theQ->front + 1) % theQ->capacity;
+    theQ->size;
+
+    //signal not full and unlock queue
+    pthread_cond_signal(&theQ->not_full);
+    pthread_mutex_unlock(&theQ->mutex);
+
+    //return what is dequeued
+    return data;
+}
+
+//prepare the queue to be shutdown
+void queue_shutdown(queue_t theQ) {
+    //lock the queue
+    pthread_mutex_lock(&theQ->mutex);
+
+    //set is_shutdown flag to true
+    theQ->is_shutdown = true;
+
+    //Broadcast to both mutex conditions
+    pthread_cond_broadcast(&theQ->not_full);
+    pthread_cond_broadcast(&theQ->not_empty);
+
+    //unlock queue
+    pthread_mutex_unlock(&theQ->mutex);
+}
+
+//check if the thread is empty
